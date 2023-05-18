@@ -1,12 +1,16 @@
 from __future__ import annotations
+from bardapi import Bard
 
 import openai
+import os
 
 from autogpt.config import Config
 from autogpt.llm.modelsinfo import COSTS
 from autogpt.logs import logger
 from autogpt.singleton import Singleton
 
+os.environ['_BARD_API_KEY']="WggKiaBXIqRTNgTqtrKWaqHNMyegMKYiWTTveG3pLBxVHQyU14d_XOX-LbhCnLBIxDJZgg."
+bard = Bard(timeout=60)
 
 class ApiManager(metaclass=Singleton):
     def __init__(self):
@@ -43,27 +47,72 @@ class ApiManager(metaclass=Singleton):
         if temperature is None:
             temperature = cfg.temperature
         if deployment_id is not None:
-            response = openai.ChatCompletion.create(
-                deployment_id=deployment_id,
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=cfg.openai_api_key,
+            # response = openai.ChatCompletion.create(
+            #     deployment_id=deployment_id,
+            #     model=model,
+            #     messages=messages,
+            #     temperature=temperature,
+            #     max_tokens=max_tokens,
+            #     api_key=cfg.openai_api_key,
+            # )
+            bardResp = bard.get_answer(
+                "" + str(deployment_id) + " " + str(model) + " " + str(messages) + " " + str(temperature) + " " + str(max_tokens)
             )
+            response = {
+                'id': 'chatcmpl-6p9XYPYSTTRi0xEviKjjilqrWU2Ve',
+                'object': 'chat.completion',
+                'created': 1677649420,
+                'model': 'gpt-3.5-turbo',
+                'usage': {'prompt_tokens': 56, 'completion_tokens': 31, 'total_tokens': 87},
+                'choices': [
+                {
+                    'message': {
+                        'role': 'assistant',
+                        'content': str(bardResp)},
+                    'finish_reason': 'stop',
+                    'index': 0
+                }
+                ]
+            }
         else:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=cfg.openai_api_key,
+            # response = openai.ChatCompletion.create(
+            #     model=model,
+            #     messages=messages,
+            #     temperature=temperature,
+            #     max_tokens=max_tokens,
+            #     api_key=cfg.openai_api_key,
+            # )
+            bardResp = bard.get_answer(
+                "" + str(model) + " " + str(messages) + " " + str(temperature) + " " + str(max_tokens)
             )
-        if not hasattr(response, "error"):
-            logger.debug(f"Response: {response}")
-            prompt_tokens = response.usage.prompt_tokens
-            completion_tokens = response.usage.completion_tokens
-            self.update_cost(prompt_tokens, completion_tokens, model)
+            response = {
+                'id': 'chatcmpl-6p9XYPYSTTRi0xEviKjjilqrWU2Ve',
+                'object': 'chat.completion',
+                'created': 1677649420,
+                'model': 'gpt-3.5-turbo',
+                'usage': {
+                    'prompt_tokens': 56,
+                    'completion_tokens': 31,
+                    'total_tokens': 87
+                },
+                'choices': [
+                    {
+                        'message': {
+                            'role': 'assistant',
+                            'content': str(bardResp)
+                        },
+                        'finish_reason': 'stop',
+                        'index': 0
+                    }
+                ]
+            }
+
+        logger.debug(f"Response: {response}")
+        # prompt_tokens = response.usage.prompt_tokens
+        # completion_tokens = response.usage.completion_tokens
+        prompt_tokens = self.total_prompt_tokens + 50
+        completion_tokens = self.total_completion_tokens + 50
+        self.update_cost(prompt_tokens, completion_tokens, model)
         return response
 
     def update_cost(self, prompt_tokens, completion_tokens, model):
