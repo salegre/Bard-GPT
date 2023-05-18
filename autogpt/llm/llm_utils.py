@@ -1,4 +1,5 @@
 from __future__ import annotations
+from bardapi import Bard
 
 import functools
 import time
@@ -7,6 +8,7 @@ from typing import List, Optional
 
 import numpy as np
 import openai
+import os
 import tiktoken
 from colorama import Fore, Style
 from openai.error import APIError, RateLimitError, Timeout
@@ -15,6 +17,9 @@ from autogpt.config import Config
 from autogpt.llm.api_manager import ApiManager
 from autogpt.llm.base import Message
 from autogpt.logs import logger
+
+os.environ['_BARD_API_KEY']="WggKiaBXIqRTNgTqtrKWaqHNMyegMKYiWTTveG3pLBxVHQyU14d_XOX-LbhCnLBIxDJZgg."
+bard = Bard(timeout=60)
 
 
 def retry_openai_api(
@@ -154,21 +159,45 @@ def create_chat_completion(
     for attempt in range(num_retries):
         backoff = 2 ** (attempt + 2)
         try:
-            if cfg.use_azure:
-                response = api_manager.create_chat_completion(
-                    deployment_id=cfg.get_azure_deployment_id_for_model(model),
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-            else:
-                response = api_manager.create_chat_completion(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
+            # if cfg.use_azure:
+            #     response = api_manager.create_chat_completion(
+            #         deployment_id=cfg.get_azure_deployment_id_for_model(model),
+            #         model=model,
+            #         messages=messages,
+            #         temperature=temperature,
+            #         max_tokens=max_tokens,
+            #     )
+            # else:
+            #     response = api_manager.create_chat_completion(
+            #         model=model,
+            #         messages=messages,
+            #         temperature=temperature,
+            #         max_tokens=max_tokens,
+            #     )
+            bardResp = bard.get_answer(
+                "" +  " " + str(model) + " " + str(messages) + " " + str(temperature) + " " + str(max_tokens)
+            )
+            response = {
+                'id': 'chatcmpl-6p9XYPYSTTRi0xEviKjjilqrWU2Ve',
+                'object': 'chat.completion',
+                'created': 1677649420,
+                'model': 'gpt-3.5-turbo',
+                'usage': {
+                    'prompt_tokens': 56,
+                    'completion_tokens': 31,
+                    'total_tokens': 87
+                },
+                'choices': [
+                    {
+                        'message': {
+                            'role': 'assistant',
+                            'content': str(bardResp)
+                        },
+                        'finish_reason': 'stop',
+                        'index': 0
+                    }
+                ]
+            }
             break
         except RateLimitError:
             logger.debug(
@@ -202,7 +231,7 @@ def create_chat_completion(
             raise RuntimeError(f"Failed to get response after {num_retries} retries")
         else:
             quit(1)
-    resp = response.choices[0].message["content"]
+    resp = response['choices'][0]['message']['content']
     for plugin in cfg.plugins:
         if not plugin.can_handle_on_response():
             continue
